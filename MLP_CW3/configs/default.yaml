@@ -1,0 +1,25 @@
+seed: null
+
+# configuration details for training
+training:
+  _target_: algos.train.main
+  num_env_steps: 10000000
+  log_interval: 10000
+  save_interval: 2000000
+  eval_interval: 100000
+  episodes_per_eval: 10
+
+# environment to use for training
+env:
+  name: ??? # needs to be specified for training
+  dummy_vecenv: false
+  parallel_envs: 0
+  max_ep_length: null
+  arguments: {}
+  fixed_arguments: {}
+  wrappers:
+    - RecordEpisodeStatistics
+    - SquashDones
+
+
+exp_name: null
