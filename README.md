@@ -1,1 +1,14 @@
 # MLP_CW3
+
+Install codebase:
+- pip install -e .
+
+Fetch and install environment:
+
+1. git submodule init
+2. cd environments/PettingZoo
+3. pip insatll -e .
+
+Run env loading (future training script):
+
+- python MLP_CW3/scripts/train.py +seed=1 +env=simple_tag_v1 
