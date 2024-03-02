@@ -20,13 +20,13 @@ setup(
         'pyglet==1.5.21',
         'pyyaml==5.4.1',
         "seaborn==0.13.0",
-        'stable-baselines3==1.8.0',
         'tensorboard',
         'torch==2.1.0',
         'tqdm',
         'imageio==2.13.1',
         'imageio-ffmpeg==0.4.5',
         'pygame==2.5.2',
-        'moviepy'
+        'moviepy',
+        'pettingzoo'
     ]
 )
