@@ -1,0 +1,20 @@
+# @package _global_
+env:
+  name:
+    - simple-tag-v3
+  num_good: 1
+  num_adversaries: 3
+  num_obstacles: 2
+  max_cycles: 75
+  continuous_actions: False
+
+  wrappers:
+    - RecordEpisodeStatistics
+    - SquashDones
+    - AgentOneHotIdWrapper
+
+training:
+  num_env_steps: 100
+  log_interval:  10000
+  save_interval: null
+  eval_interval: 100000
