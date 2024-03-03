@@ -1,12 +1,7 @@
 # @package _global_
 env:
   name:
-    - simple-tag-v3
-  num_good: 1
-  num_adversaries: 3
-  num_obstacles: 2
-  max_cycles: 75
-  continuous_actions: False
+    - pz-mpe-simple-tag-v1
 
   wrappers:
     - RecordEpisodeStatistics
@@ -14,7 +9,7 @@ env:
     - AgentOneHotIdWrapper
 
 training:
-  num_env_steps: 100
+  num_env_steps: 5000000
   log_interval:  10000
   save_interval: null
   eval_interval: 100000

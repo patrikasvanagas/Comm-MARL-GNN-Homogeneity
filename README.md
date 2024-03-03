@@ -3,9 +3,12 @@
 Install codebase:
 - pip install -e .
 
-Install stable-baselines3:
-- git clone https://github.com/DLR-RM/stable-baselines3.git
+Fetch and install environment:
+
+1. git submodule init
+2. cd environments/PettingZoo
+3. pip insatll -e .
 
 Run env loading (future training script):
 
-- python MLP_CW3/scripts/train.py +seed=1 +env=simple_tag_v3 
+- python MLP_CW3/scripts/train.py +seed=1 +env=simple_tag_v1 
