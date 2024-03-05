@@ -6,9 +6,10 @@ Install codebase:
 Fetch and install environment:
 
 1. git submodule init
-2. cd environments/PettingZoo
-3. pip insatll -e .
+2. git submodule update
+3. cd environments/PettingZoo
+4. pip insatll -e .
 
 Run env loading (future training script):
 
-- python MLP_CW3/scripts/train.py +seed=1 +env=simple_tag_v1 
+- python MLP_CW3/scripts/train.py +seed=1 +env=simple_tag_v1 +alg=a2c_gnn
