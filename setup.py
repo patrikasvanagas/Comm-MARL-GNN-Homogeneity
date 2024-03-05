@@ -3,12 +3,12 @@ from setuptools import find_packages, setup
 setup(
     name='MLP_CW3',
     packages=find_packages(),
-    version='0.0.2',
+    version='0.0.0',
     install_requires=[
         'click==8.0.3',
         'cpprb==10.6.3',
         'einops==0.7.0',
-        'hydra_core==1.3.2',
+        'hydra-core==1.0.5',
         'gym==0.21.0',
         'h5py==3.10.0',
         'info-nce-pytorch==0.1.4',
@@ -25,5 +25,6 @@ setup(
         'tqdm',
         'imageio==2.13.1',
         'imageio-ffmpeg==0.4.5',
+        'wandb==0.16.3'
     ]
 )

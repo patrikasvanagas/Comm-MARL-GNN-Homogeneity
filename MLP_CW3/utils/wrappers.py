@@ -45,6 +45,40 @@ class RecordEpisodeStatistics(gym.Wrapper):
         return observation, reward, done, info
 
 
+class RecordEpisodeStatisticsGroups(gym.Wrapper):
+    """ Multi-agent version of RecordEpisodeStatistics gym wrapper"""
+
+    def __init__(self, env, deque_size=100):
+        super().__init__(env)
+        self.t0 = perf_counter()
+        self.episode_reward = np.zeros(self.n_agents)
+        self.episode_length = 0
+        self.reward_queue = deque(maxlen=deque_size)
+        self.length_queue = deque(maxlen=deque_size)
+
+    def reset(self, **kwargs):
+        observation = super().reset(**kwargs)
+        self.episode_reward = np.zeros(self.n_agents)
+        self.episode_length = 0
+        self.t0 = perf_counter()
+
+        return observation
+
+    def step(self, action):
+        observation, reward, done, info = super().step(action)
+        self.episode_reward += np.array(reward, dtype=np.float64)
+        self.episode_length += 1
+        if all(done):
+            info["episode_reward"] = self.episode_reward.copy()
+            for i, agent_reward in enumerate(self.episode_reward):
+                info[f"agent{i}/episode_reward"] = agent_reward
+            info["episode_length"] = self.episode_length
+            info["episode_time"] = perf_counter() - self.t0
+
+            self.reward_queue.append(self.episode_reward.copy())
+            self.length_queue.append(self.episode_length)
+        return observation, reward, done, info
+
 class AgentOneHotIdWrapper(gym.Wrapper):
     """
     Wrapper that adds OneHot Agent IDs to their observations
