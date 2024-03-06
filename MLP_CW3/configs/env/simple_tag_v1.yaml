@@ -8,6 +8,8 @@ env:
     num_good: 2
     num_obstacles: 2
     max_frames: 25
+    prey_max_speed: 0
+    po_distance: 1
 
   wrappers:
     - RecordEpisodeStatistics
