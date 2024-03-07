@@ -32,7 +32,7 @@ def _make_parallel_envs(name, parallel_envs, dummy_vecenv, wrappers, seed, max_e
             (parallel_envs, len(envs.observation_space)), dtype=np.float32
         )
     else:
-        envs = SubprocVecEnv(env_thunks, start_method="fork")
+        envs = SubprocVecEnv(env_thunks, start_method="spawn")
     return envs
 
 def _make_env(name, wrappers, parallel_envs, dummy_vecenv, seed, max_ep_length, arguments={}, fixed_arguments={}, argument_groups=None):

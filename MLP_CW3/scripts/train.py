@@ -99,15 +99,16 @@ def train(
 
 @hydra.main(config_path="../configs", config_name="default")
 def main(cfg: DictConfig):
-    if cfg.training.logger == "wandb":
-        logger = WandbLogger(
-            team_name="mlpcw3",
-            project_name="mpl_cw3_runs",
-            mode="offline",
-            cfg=cfg
-        )
-    else:
-        logger = PrintLogger(cfg)
+    # if cfg.training.logger == "wandb":
+    print(cfg)
+    logger = WandbLogger(
+        team_name="mlpcw3",
+        project_name="mpl_cw3_runs",
+        mode="offline",
+        cfg=cfg
+    )
+    # else:
+    #     logger = PrintLogger(cfg)
     logger.training_mode()
     if cfg.seed is not None:
         torch.manual_seed(cfg.seed)
