@@ -223,12 +223,12 @@ class A2C(Algorithm):
         for group_id, (agent_group, group_critics, target_critics, group_optim) in enumerate(zip(self.agent_groups, self.groups_critics, self.groups_tar_critics, self.groups_optimisers)):
             group_actions = act[agent_group]
             # Critics loss calculation for the group
-            values, _ = self._query_critics(obss, actor_hiddens, group_id)
+            values, _ = self._query_critics(obss, critic_hiddens, group_id)
             advantages = returns[agent_group] - values
             value_loss = advantages.pow(2).mean()
 
             # Actors loss calculation for the group
-            action_logits, _ = self._query_actors(obss, critic_hiddens, group_id)
+            action_logits, _ = self._query_actors(obss, actor_hiddens, group_id)
             action_dists = [Categorical(logits=logits) for logits in action_logits]
             action_log_probs = torch.stack([dist.log_prob(a.squeeze()).unsqueeze(-1) for dist, a in zip(action_dists, group_actions)], dim=0)
             dist_entropy = torch.stack([dist.entropy().mean() for dist in action_dists], dim=0).mean()
