@@ -69,7 +69,7 @@ class RNNBase(nn.Module):
         # Extra hidden layers
         fc_network_layers = [FCLayer(hidden_dim, hidden_dim, layernorm, nn.ReLU(), device) for hidden_dim in hiddens[1:]]
         # Out layer
-        fc_network_layers.append(FCLayer(hiddens[-1], output_dim, layernorm, None, device))
+        fc_network_layers.append(FCLayer(hiddens[-1], output_dim, None, None, device))
         
         self.post_rnn = nn.Sequential(*fc_network_layers)
         self.rnn_hidden_dim = self.rnn.hidden_dim

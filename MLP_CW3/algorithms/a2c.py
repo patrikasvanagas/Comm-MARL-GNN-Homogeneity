@@ -221,15 +221,18 @@ class A2C(Algorithm):
         obss = [torch.Tensor(obs[:-1]) for obs in obs]
 
         for group_id, (agent_group, group_critics, target_critics, group_optim) in enumerate(zip(self.agent_groups, self.groups_critics, self.groups_tar_critics, self.groups_optimisers)):
+            group_critic_hiddens = critic_hiddens[agent_group]
+            group_actor_hiddens = actor_hiddens[agent_group]
+            group_actions = act[agent_group]
             # Critics loss calculation for the group
-            values, _ = self._query_critics(obss, critic_hiddens, group_id)
+            values, _ = self._query_critics(obss, group_critic_hiddens, group_id)
             advantages = returns[agent_group] - values
             value_loss = advantages.pow(2).mean()
 
             # Actors loss calculation for the group
-            action_logits, _ = self._query_actors(obss, actor_hiddens, group_id)
+            action_logits, _ = self._query_actors(obss, group_actor_hiddens, group_id)
             action_dists = [Categorical(logits=logits) for logits in action_logits]
-            action_log_probs = torch.stack([dist.log_prob(a.squeeze()).unsqueeze(-1) for dist, a in zip(action_dists, act)], dim=0)
+            action_log_probs = torch.stack([dist.log_prob(a.squeeze()).unsqueeze(-1) for dist, a in zip(action_dists, group_actions)], dim=0)
             dist_entropy = torch.stack([dist.entropy().mean() for dist in action_dists], dim=0).mean()
             actor_loss = -(advantages.detach() * action_log_probs).mean()
 
