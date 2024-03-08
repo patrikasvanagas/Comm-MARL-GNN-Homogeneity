@@ -232,7 +232,7 @@ class RolloutBuffer(BaseBuffer):
     def get_last(self) -> RNNRolloutBufferSamples:
         if not self.pos:
             return self._get_samples(0)
-        return self._get_samples(self.pos - 1)
+        return self._get_samples(self.pos)
     
     def _get_samples(self, batch_inds: np.ndarray) -> RNNRolloutBufferSamples:
         data = (
