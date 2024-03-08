@@ -11,6 +11,7 @@ alg:
     encoder_dim: 128
     gnn_iterations: 5
     parameter_sharing: True
+    recurrent: False
     layernorm: True # layernorm after each hidden layer
     device: cpu
 

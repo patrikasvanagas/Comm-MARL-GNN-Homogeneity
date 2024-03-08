@@ -32,9 +32,9 @@ class A2C(Algorithm):
             output_dims = self.action_sizes[agent_group]
             critic_output_dims = [1] * len(agent_group)
             multi_agent_class = MultiAgentSharedNetworks if cfg.model.parameter_sharing else MultiAgentNetworks
-            self.groups_actors.append(multi_agent_class(input_dims, output_dims, cfg.model.actor_hiddens, cfg.model.layernorm, cfg.model.device))
-            self.groups_critics.append(multi_agent_class(input_dims, critic_output_dims, cfg.model.critic_hiddens, cfg.model.layernorm, cfg.model.device))
-            self.groups_tar_critics.append(multi_agent_class(input_dims, critic_output_dims, cfg.model.critic_hiddens, cfg.model.layernorm, cfg.model.device))
+            self.groups_actors.append(multi_agent_class(input_dims, output_dims, cfg.model.actor_hiddens, cfg.model.layernorm, cfg.model.recurrent, cfg.model.device))
+            self.groups_critics.append(multi_agent_class(input_dims, critic_output_dims, cfg.model.critic_hiddens, cfg.model.layernorm, cfg.model.recurrent, cfg.model.device))
+            self.groups_tar_critics.append(multi_agent_class(input_dims, critic_output_dims, cfg.model.critic_hiddens, cfg.model.layernorm, cfg.model.recurrent, cfg.model.device))
         
         for tar_critics, critics  in zip(self.groups_tar_critics, self.groups_critics):
             hard_update(tar_critics, critics)

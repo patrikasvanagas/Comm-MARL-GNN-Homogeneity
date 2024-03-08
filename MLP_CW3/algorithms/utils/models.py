@@ -53,23 +53,45 @@ class GRULayer(nn.Module):
             hiddens = self.norm(hiddens)
         return hiddens
 
-
-class RNNBase(nn.Module):
-    def __init__(self, input_dim, output_dim, hiddens, layernorm, device):
-        super(RNNBase, self).__init__()
-        assert len(hiddens) > 0; "Provide valid hidden layer configuration"
+class FCBase(nn.Module):
+    def __init__(self, input_dim, output_dim, hidden_dims, layernorm, device):
+        super(FCBase, self).__init__()
+        assert len(hidden_dims) > 0; "Provide valid hidden layer configuration"
 
         self.input_dim = input_dim
         self.output_dim = output_dim
         
         self.norm = nn.LayerNorm(input_dim, device=device) if layernorm else None
         # RNN block
-        self.pre_rnn = FCLayer(input_dim, hiddens[0], layernorm, nn.ReLU(), device)
-        self.rnn = GRULayer(hiddens[0], hiddens[0], layernorm, device=device)
-        # Extra hidden layers
-        fc_network_layers = [FCLayer(hidden_dim, hidden_dim, layernorm, nn.ReLU(), device) for hidden_dim in hiddens[1:]]
+        self.input_fc = FCLayer(input_dim, hidden_dims[0], layernorm, nn.ReLU(), device)
+        fc_network_layers = [FCLayer(hidden_dim, hidden_dim, layernorm, nn.ReLU(), device) for hidden_dim in hidden_dims[1:]]
         # Out layer
-        fc_network_layers.append(FCLayer(hiddens[-1], output_dim, None, None, device))
+        fc_network_layers.append(FCLayer(hidden_dims[-1], output_dim, None, None, device))
+        self.fc_network_layers = nn.Sequential(*fc_network_layers)
+    
+    def forward(self, inputs):
+        if self.norm is not None:
+            inputs = self.norm(inputs)
+        x = self.input_fc(inputs)
+        out = self.fc_network_layers(x)
+        return out
+
+class RNNBase(nn.Module):
+    def __init__(self, input_dim, output_dim, hidden_dims, layernorm, device):
+        super(RNNBase, self).__init__()
+        assert len(hidden_dims) > 0; "Provide valid hidden layer configuration"
+
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        
+        self.norm = nn.LayerNorm(input_dim, device=device) if layernorm else None
+        # RNN block
+        self.pre_rnn = FCLayer(input_dim, hidden_dims[0], layernorm, nn.ReLU(), device)
+        self.rnn = GRULayer(hidden_dims[0], hidden_dims[0], layernorm, device=device)
+        # Extra hidden layers
+        fc_network_layers = [FCLayer(hidden_dim, hidden_dim, layernorm, nn.ReLU(), device) for hidden_dim in hidden_dims[1:]]
+        # Out layer
+        fc_network_layers.append(FCLayer(hidden_dims[-1], output_dim, None, None, device))
         
         self.post_rnn = nn.Sequential(*fc_network_layers)
         self.rnn_hidden_dim = self.rnn.hidden_dim
@@ -90,56 +112,82 @@ class MultiAgentNetworks(nn.Module):
             self,
             input_dims,
             output_dims,
-            hiddens,
+            hidden_dims,
             layernorm,
+            recurrent=False,
             device=DEVICE,
     ):
         super(MultiAgentNetworks, self).__init__()
-        self.rnn_hidden_dims = [hiddens[0] for _ in range(len(input_dims))]
-        self.networks = nn.ModuleList([
-            RNNBase(
-                input_dim, output_dim, hiddens, layernorm, device
-            )
-            for input_dim, output_dim in zip(input_dims, output_dims)
-        ])
+        self.recurrent = recurrent
+        if recurrent:
+            self.rnn_hidden_dims = [hidden_dims[0] for _ in range(len(input_dims))]
+            self.networks = nn.ModuleList([
+                RNNBase(
+                    input_dim, output_dim, hidden_dims, layernorm, device
+                )
+                for input_dim, output_dim in zip(input_dims, output_dims)
+            ])
+        else:
+            self.rnn_hidden_dims = [0 for _ in range(len(input_dims))]
+            self.networks = nn.ModuleList([
+                FCBase(
+                    input_dim, output_dim, hidden_dims, layernorm, device
+                )
+                for input_dim, output_dim in zip(input_dims, output_dims)
+            ])
     
-    def forward(self, inputs, hiddens):
-        if hiddens is None:
+    def forward(self, inputs, hiddens = None):
+        if self.recurrent:
+            futures = [
+                torch.jit.fork(model, x, h) for model, x, h in zip(self.networks, inputs, hiddens)
+            ]
+            outputs = [torch.jit.wait(fut) for fut in futures]
+            outs = torch.stack([out for out, _ in outputs], dim=0)
+            hiddens = torch.stack([h for _, h in outputs], dim=0)
+        else:
             hiddens = [None] * len(inputs)
-        futures = [
-            torch.jit.fork(model, x, h) for model, x, h in zip(self.networks, inputs, hiddens)
-        ]
-        outputs = [torch.jit.wait(fut) for fut in futures]
-        outs = torch.stack([out for out, _ in outputs], dim=0)
-        hiddens = torch.stack([h for _, h in outputs], dim=0)
+            futures = [
+                torch.jit.fork(model, x) for model, x in zip(self.networks, inputs)
+            ]
+            outputs = [torch.jit.wait(fut) for fut in futures]
+            outs = torch.stack([out for out, _ in outputs], dim=0)
         return outs, hiddens
-
 
 class MultiAgentSharedNetworks(nn.Module):
     def __init__(
             self,
             input_dims,
             output_dims,
-            hiddens,
+            hidden_dims,
             layernorm,
+            recurrent,
             device=DEVICE,
     ):
         super(MultiAgentSharedNetworks, self).__init__()
+        self.recurrent = recurrent
         input_dim = input_dims[0] 
         output_dim = output_dims[0]
         assert all([i == input_dim for i in input_dims]), "Input dimensions must be equal for shared networks!"
         assert all([o == output_dim for o in output_dims]), "Output dimensions must be equal for shared networks!"
-
-        self.rnn_hidden_dims = [hiddens[0] for _ in range(len(input_dims))]
-        self.shared_network = RNNBase(input_dim, output_dim, hiddens, layernorm, device)
+        if self.recurrent:
+            self.rnn_hidden_dims = [hidden_dims[0] for _ in range(len(input_dims))]
+            self.shared_network = RNNBase(input_dim, output_dim, hidden_dims, layernorm, device)
+        else:
+            self.rnn_hidden_dims = [0 for _ in range(len(input_dims))]
+            self.shared_network = FCBase(input_dim, output_dim, hidden_dims, layernorm, device)
     
-    def forward(self, inputs, hiddens):
-        if hiddens is None:
+    def forward(self, inputs, hiddens=None):
+        if self.recurrent:
+            futures = [
+                torch.jit.fork(self.shared_network, x, h) for x, h in zip(inputs, hiddens)
+            ]
+            outputs = [torch.jit.wait(fut) for fut in futures]
+            outs = torch.stack([out for out, _ in outputs], dim=0)
+        else:
             hiddens = [None] * len(inputs)
-        futures = [
-            torch.jit.fork(self.shared_network, x, h) for x, h in zip(inputs, hiddens)
-        ]
-        outputs = [torch.jit.wait(fut) for fut in futures]
-        outs = torch.stack([out for out, _ in outputs], dim=0)
-        hiddens = torch.stack([h for _, h in outputs], dim=0)
+            futures = [
+                torch.jit.fork(self.shared_network, x) for x in inputs
+            ]
+            outputs = [torch.jit.wait(fut) for fut in futures]
+            outs = torch.stack(outputs, dim=0)
         return outs, hiddens

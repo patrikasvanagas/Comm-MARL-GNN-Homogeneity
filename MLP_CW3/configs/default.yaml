@@ -12,7 +12,7 @@ training:
 env:
   name: ??? # needs to be specified for training
   dummy_vecenv: false
-  parallel_envs: 4
+  parallel_envs: 10
   max_ep_length: null
   arguments: {}
   fixed_arguments: {}

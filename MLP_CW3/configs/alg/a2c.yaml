@@ -9,6 +9,7 @@ alg:
       - 128
       - 128
     parameter_sharing: True
+    recurrent: False
     layernorm: True # layernorm after each hidden layer
     device: cpu
 
