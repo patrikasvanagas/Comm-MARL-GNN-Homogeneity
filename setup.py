@@ -25,6 +25,7 @@ setup(
         'tqdm',
         'imageio==2.13.1',
         'imageio-ffmpeg==0.4.5',
-        'wandb==0.16.3'
+        'wandb==0.16.3',
+        'torch-geometric==2.5.0'
     ]
 )
