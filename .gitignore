@@ -157,3 +157,23 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+statybos.ipynb
+ž_statybos/data/eng-fra.txt
+ž_statybos/data/names/Arabic.txt
+ž_statybos/data/names/Chinese.txt
+ž_statybos/data/names/Czech.txt
+ž_statybos/data/names/Dutch.txt
+ž_statybos/data/names/English.txt
+ž_statybos/data/names/French.txt
+ž_statybos/data/names/German.txt
+ž_statybos/data/names/Greek.txt
+ž_statybos/data/names/Irish.txt
+ž_statybos/data/names/Italian.txt
+ž_statybos/data/names/Japanese.txt
+ž_statybos/data/names/Korean.txt
+ž_statybos/data/names/Polish.txt
+ž_statybos/data/names/Portuguese.txt
+ž_statybos/data/names/Russian.txt
+ž_statybos/data/names/Scottish.txt
+ž_statybos/data/names/Spanish.txt
+ž_statybos/data/names/Vietnamese.txt
