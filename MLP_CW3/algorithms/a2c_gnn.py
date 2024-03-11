@@ -4,7 +4,7 @@ from gym.spaces import Box
 import numpy as np
 import torch
 from MLP_CW3.algorithms.a2c import A2C
-from MLP_CW3.algorithms.encoders import Encoder, GATNetwork
+from MLP_CW3.algorithms.encoders import Encoder, GATNetwork_, GATNetwork, GATv2Network
 from gym.spaces.utils import flatdim
 
 class A2CGNN(A2C):
@@ -19,7 +19,7 @@ class A2CGNN(A2C):
         encoder_space = [Box(-np.inf, np.inf, (cfg.model.encoder_dim, )) for _ in observation_space]
         super(A2CGNN, self).__init__(encoder_space, action_space, agent_groups, cfg)
         self.groups_encoder = [Encoder(self._obs_sizes[agent_group[0]], cfg.model.encoder_dim) for agent_group in self.agent_groups]
-        self.groups_gnn = [GATNetwork(cfg.model.encoder_dim, cfg.model.gnn_iterations) for _ in self.agent_groups]
+        self.groups_gnn = [GATv2Network(cfg.model.encoder_dim, cfg.model.gnn_iterations) for _ in self.agent_groups]
 
         self.groups_optimisers = [
                 torch.optim.Adam(list(actors.parameters()) + list(critics.parameters()) + list(encoder.parameters())+ list(gnn.parameters()), self.lr) 
