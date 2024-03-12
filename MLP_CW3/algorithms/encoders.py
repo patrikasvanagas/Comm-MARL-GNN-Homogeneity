@@ -158,18 +158,17 @@ class GATv2Network(nn.Module):
         )
 
 
-
-class AttentionMechanismWithWeights(nn.Module):
+class AttentionMechanism(nn.Module):
     def __init__(self, encoding_dim, d_K):
         """
         Initializes the attention mechanism module from
-        https://arxiv.org/pdf/1906.01202.pdf
+        https://arxiv.org/pdf/1906.01202.pdf (p. 4)
 
         Parameters:
         - encoding_dim: The dimension of the agent state encoding.
         - d_K: The dimensionality of the key and query vectors.
         """
-        super(AttentionMechanismWithWeights, self).__init__()
+        super(AttentionMechanism, self).__init__()
         self.encoding_dim = encoding_dim
         self.d_K = d_K
 
@@ -183,25 +182,29 @@ class AttentionMechanismWithWeights(nn.Module):
         Forward pass of the attention mechanism.
 
         Parameters:
-        - encodings: Tensor of shape (num_agents, encoding_dim), the encodings h_i for each agent.
+        - encodings: Tensor of shape (batch_size, num_agents, encoding_dim), the encodings h_i for each agent.
 
         Returns:
         - V_f: The aggregated and transformed value for each agent
-          of shape (num_agents, encoding_dim).
+          of shape (batch_size, num_agents, encoding_dim).
         - attention_weights: The attention weights for each agent
-          of shape (num_agents, num_agents).
+          of shape (batch_size, num_agents, num_agents).
         """
+        # encodings shape expected: (batch_size, num_agents, encoding_dim)
+        # keys.shape = (batch_size, num_agents, d_K)
         Keys = self.W_K(encodings)
         Queries = self.W_Q(encodings)
         Values = self.W_V(encodings)
 
+        # attention_scores and weights shape: (batch_size, num_agents, num_agents)
         attention_scores = torch.matmul(Queries, Keys.transpose(-2, -1)) / torch.sqrt(
             torch.tensor(self.d_K, dtype=torch.float32)
         )
         attention_weights = F.softmax(attention_scores, dim=-1)
 
+        # aggregated_values shape: (batch_size, num_agents, encoding_dim)
         aggregated_values = torch.matmul(attention_weights, Values)
-        # V_f shape: (num_agents, encoding_dim)
+        # V_f shape: (batch_size, num_agents, encoding_dim)
         V_f = self.W_out(aggregated_values)
 
         return V_f, attention_weights
