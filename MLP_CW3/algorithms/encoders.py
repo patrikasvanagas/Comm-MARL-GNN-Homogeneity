@@ -190,21 +190,24 @@ class AttentionMechanism(nn.Module):
         - attention_weights: The attention weights for each agent
           of shape (batch_size, num_agents, num_agents).
         """
-        # encodings shape expected: (batch_size, num_agents, encoding_dim)
-        # keys.shape = (batch_size, num_agents, d_K)
+        encodings = encodings.permute(1, 2, 0, 3)
+
+        # encodings shape expected: (batch_size, num_envs, num_agents, encoding_dim)
+        # keys.shape = (batch_size, num_envs, num_agents, d_K)
         Keys = self.W_K(encodings)
         Queries = self.W_Q(encodings)
         Values = self.W_V(encodings)
 
-        # attention_scores and weights shape: (batch_size, num_agents, num_agents)
+        # attention_scores and weights shape: (batch_size, num_envs, num_agents, num_agents)
         attention_scores = torch.matmul(Queries, Keys.transpose(-2, -1)) / torch.sqrt(
             torch.tensor(self.d_K, dtype=torch.float32)
         )
         attention_weights = F.softmax(attention_scores, dim=-1)
 
-        # aggregated_values shape: (batch_size, num_agents, encoding_dim)
+        # aggregated_values shape: (batch_size, num_envs, num_agents, encoding_dim)
         aggregated_values = torch.matmul(attention_weights, Values)
-        # V_f shape: (batch_size, num_agents, encoding_dim)
+        # V_f shape: (batch_size, num_envs, num_agents, encoding_dim)
         V_f = self.W_out(aggregated_values)
 
-        return V_f, attention_weights
+        V_f = V_f.permute(2, 0, 1, 3)
+        return V_f#, attention_weights
