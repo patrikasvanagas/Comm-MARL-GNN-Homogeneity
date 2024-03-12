@@ -159,7 +159,7 @@ class GATv2Network(nn.Module):
 
 
 class AttentionMechanism(nn.Module):
-    def __init__(self, encoding_dim, d_K):
+    def __init__(self, encoding_dim, d_K, no_attention_to_self=True):
         """
         Initializes the attention mechanism module from
         https://arxiv.org/pdf/1906.01202.pdf (p. 4)
@@ -167,10 +167,13 @@ class AttentionMechanism(nn.Module):
         Parameters:
         - encoding_dim: The dimension of the agent state encoding.
         - d_K: The dimensionality of the key and query vectors.
+        - no_attention_to_self: If True, the attention mechanism will not
+        allow agents to attend to themselves.
         """
         super(AttentionMechanism, self).__init__()
         self.encoding_dim = encoding_dim
         self.d_K = d_K
+        self.no_attention_to_self = no_attention_to_self
 
         self.W_K = nn.Linear(encoding_dim, d_K)
         self.W_Q = nn.Linear(encoding_dim, d_K)
@@ -182,17 +185,19 @@ class AttentionMechanism(nn.Module):
         Forward pass of the attention mechanism.
 
         Parameters:
-        - encodings: Tensor of shape (batch_size, num_agents, encoding_dim), the encodings h_i for each agent.
+        - encodings: Tensor of shape (n_agents, batch_size, number of envs,
+        encoding dim), the encodings h_i for each agent.
 
         Returns:
         - V_f: The aggregated and transformed value for each agent
-          of shape (batch_size, num_agents, encoding_dim).
+          of shape (n_agents, batch_size, number of envs, encoding dim)
         - attention_weights: The attention weights for each agent
-          of shape (batch_size, num_agents, num_agents).
+          of shape (n_agents, batch_size, number of envs, number of agents)
         """
+        # Permute to shape (batch_size, num_envs, num_agents, encoding_dim)
+        # to allow for matrix multiplication
         encodings = encodings.permute(1, 2, 0, 3)
 
-        # encodings shape expected: (batch_size, num_envs, num_agents, encoding_dim)
         # keys.shape = (batch_size, num_envs, num_agents, d_K)
         Keys = self.W_K(encodings)
         Queries = self.W_Q(encodings)
@@ -202,6 +207,13 @@ class AttentionMechanism(nn.Module):
         attention_scores = torch.matmul(Queries, Keys.transpose(-2, -1)) / torch.sqrt(
             torch.tensor(self.d_K, dtype=torch.float32)
         )
+
+        if self.no_attention_to_self:
+            batch_size, num_envs, num_agents, _ = attention_scores.shape
+            mask = torch.eye(num_agents, dtype=torch.bool).unsqueeze(0).unsqueeze(0)
+            mask = mask.repeat(batch_size, num_envs, 1, 1)
+            attention_scores.masked_fill_(mask, float("-inf"))
+
         attention_weights = F.softmax(attention_scores, dim=-1)
 
         # aggregated_values shape: (batch_size, num_envs, num_agents, encoding_dim)
@@ -209,5 +221,6 @@ class AttentionMechanism(nn.Module):
         # V_f shape: (batch_size, num_envs, num_agents, encoding_dim)
         V_f = self.W_out(aggregated_values)
 
+        # Permute back to original shape
         V_f = V_f.permute(2, 0, 1, 3)
-        return V_f#, attention_weights
+        return V_f  # , attention_weights
