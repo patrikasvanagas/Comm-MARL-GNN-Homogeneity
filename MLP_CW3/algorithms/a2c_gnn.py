@@ -30,7 +30,7 @@ class A2CGNN(A2C):
         # self.groups_gnn = [GATNetwork(cfg.model.encoder_dim, cfg.model.gnn_iterations) for _ in self.agent_groups]
         self.groups_gnn = [
             AttentionMechanism(
-                cfg.model.encoder_dim, cfg.model.encoder_dim, no_attention_to_self=True
+                cfg.model.encoder_dim, cfg.model.encoder_dim, no_attention_to_self=False
             )
             for _ in self.agent_groups
         ]
