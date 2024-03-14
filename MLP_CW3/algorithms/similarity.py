@@ -27,6 +27,7 @@ def cosine_similarity(embeddings_1, embeddings_2):
 def similarity(embeddings):
     """
     :param embeddings: The embeddings of the agents of shape [nr_agents, nr_samples, nr_parallel_envs, dim_embeddings]
+    :return: The similarity of the embeddings of the agents of shape [nr_samples, nr_parallel_envs]
     """
     nr_agents, nr_samples, nr_parallel_envs, dim_embeddings = embeddings.shape
     similarities = np.zeros((nr_samples, nr_parallel_envs))
