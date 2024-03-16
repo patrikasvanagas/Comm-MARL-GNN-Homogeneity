@@ -6,7 +6,7 @@ import random
 
 import hydra
 import numpy as np
-from collections import deque
+from collections import deque, defaultdict
 from omegaconf import DictConfig
 import torch
 
@@ -48,6 +48,7 @@ def train(
     num_steps = 0
     completed_episodes = 0
     last_log_t = 0
+    step_infos = [defaultdict(list) for _ in range(cfg.env.parallel_envs)]
     while num_steps < total_num_env_steps:
         # Query storage for latest observation & hiddens 
         obs, _, actors_hiddens, critics_hiddens, _, _ = marl_storage.get_last()
@@ -56,6 +57,7 @@ def train(
         
         # Query environment for new state
         obs, rewards, dones, infos = envs.step(actions.tolist())
+        infos = alg.update_info(infos)
         rewards = np.array(rewards).transpose(1, 0)
         marl_storage.add(obs, 
                         actions.transpose(1, 0).unsqueeze(-1), 
@@ -64,6 +66,10 @@ def train(
                         rewards,
                         dones,
                         )
+        # update step buffer
+        for info, step_info in zip(infos, step_infos):
+            for k, v in info.items():
+                step_info[k].append(v)
         # log episode data for completed episodes
         assert sum(dones) in [0, cfg.env.parallel_envs]; f"Right now only synchronous env termination is accepted {dones}"
         if all(dones):
@@ -71,10 +77,11 @@ def train(
                     completed_episodes += 1
                     info["completed_episodes"] = completed_episodes
                     all_infos.append(info)
-                    logger.log_episode(num_steps, info, agent_groups)
+                    logger.log_episode(num_steps, info, step_infos[i], agent_groups)
             # Reset environment and initialize storage
             obs = envs.reset()
             marl_storage.init_obs_hiddens(obs)
+            step_infos = [defaultdict(list) for _ in range(cfg.env.parallel_envs)]
         
         num_steps += cfg.env.parallel_envs
 

@@ -9,11 +9,18 @@ alg:
       - 128
       - 128
     encoder_dim: 128
-    gnn_iterations: 5
+    gnn_iterations: 1
     parameter_sharing: True
     recurrent: False
     layernorm: True # layernorm after each hidden layer
     device: cpu
+    gnn_version: gat
+    gnn_n_heads: 1
+    gnn_is_concat: False
+    gnn_dropout:  0.6
+    gnn_leaky_relu_negative_slope: 0.2
+    gnn_share_weights: False
+    gnn_residual_connections: True
 
   greedy_evaluation: false
 

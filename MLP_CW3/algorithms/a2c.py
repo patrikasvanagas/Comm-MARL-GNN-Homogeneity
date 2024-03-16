@@ -99,6 +99,9 @@ class A2C(Algorithm):
                 group_actors.load_state_dict(checkpoint["actors"].state_dict())
                 group_critics.load_state_dict(checkpoint["critics"].state_dict())
                 group_optim.load_state_dict(checkpoint["optimiser"].state_dict())
+    
+    def update_info(self, info):
+        return info
 
     def _query_actors(self, obss, hiddens, group_id):
         agent_group = self.agent_groups[group_id]

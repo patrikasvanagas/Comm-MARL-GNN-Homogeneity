@@ -130,7 +130,7 @@ class Logger(ABC):
 
         self.info("-------------------------------------------")
 
-    def log_episode(self, timestep, info, groups, main_label="Train", print_train_log=False):
+    def log_episode(self, timestep, info, step_info, groups, main_label="Train", print_train_log=False):
         info["episode_reward"] = sum(info["episode_reward"])
         to_remove_keys = ["terminal_observation"]
         for k in info.keys():
@@ -143,6 +143,11 @@ class Logger(ABC):
         log_dict = {}
 
         group_returns = ""
+
+        if "predator_similarity" in step_info:
+            log_dict[f"{main_label}/predator_similarity_mean"] = np.mean(step_info["predator_similarity"])
+            log_dict[f"{main_label}/predator_similarity_std"] = np.std(step_info["predator_similarity"])
+
         for group_id, agent_group in enumerate(groups):
             mean_return = sum([info[f"agent{agent_id}/episode_reward"].sum() for agent_id in agent_group]) / len(agent_group)
             log_dict[f"{main_label}/group_{group_id}_mean_return"] = mean_return

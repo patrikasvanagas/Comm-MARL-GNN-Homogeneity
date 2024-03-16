@@ -6,13 +6,18 @@ import torch
 from MLP_CW3.algorithms.a2c import A2C
 from MLP_CW3.algorithms.encoders import (
     Encoder,
-    GATNetwork_,
     GATNetwork,
     GATv2Network,
     AttentionMechanism,
 )
+from MLP_CW3.algorithms.similarity import similarity
 from gym.spaces.utils import flatdim
 
+GNN_MODELS_MAP = {
+    "gat": GATNetwork,
+    "gatv2": GATv2Network,
+    "self_attention": AttentionMechanism,
+}
 
 class A2CGNN(A2C):
     def __init__(self, observation_space, action_space, agent_groups, cfg):
@@ -27,13 +32,21 @@ class A2CGNN(A2C):
             Encoder(self._obs_sizes[agent_group[0]], cfg.model.encoder_dim)
             for agent_group in self.agent_groups
         ]
-        # self.groups_gnn = [GATNetwork(cfg.model.encoder_dim, cfg.model.gnn_iterations) for _ in self.agent_groups]
-        self.groups_gnn = [
-            AttentionMechanism(
-                cfg.model.encoder_dim, cfg.model.encoder_dim, no_attention_to_self=False
-            )
-            for _ in self.agent_groups
-        ]
+        self.groups_gnn = [GNN_MODELS_MAP[cfg.model.gnn_version](cfg.model.encoder_dim,
+                                        cfg.model.encoder_dim,
+                                        cfg.model.gnn_n_heads,
+                                        cfg.model.gnn_is_concat,
+                                        cfg.model.gnn_dropout,
+                                        cfg.model.gnn_leaky_relu_negative_slope,
+                                        cfg.model.gnn_share_weights,
+                                        cfg.model.gnn_residual_connections) 
+                                        for _ in self.agent_groups]
+        # self.groups_gnn = [
+        #     AttentionMechanism(
+        #         cfg.model.encoder_dim, cfg.model.encoder_dim, no_attention_to_self=False
+        #     )
+        #     for _ in self.agent_groups
+        # ]
 
         self.groups_optimisers = [
             torch.optim.Adam(
@@ -50,7 +63,7 @@ class A2CGNN(A2C):
                 self.groups_gnn,
             )
         ]
-
+        
         self.group_saveables = [
             {
                 "actors": actors.state_dict(),
@@ -67,6 +80,9 @@ class A2CGNN(A2C):
                 self.groups_gnn,
             )
         ]
+
+        self.info_update_buffer = {}
+
         print("Agent encoders & GNNs:")
         for group_id, (encoder, gnn) in enumerate(
             zip(self.groups_encoder, self.groups_gnn)
@@ -133,6 +149,11 @@ class A2CGNN(A2C):
                 group_gnn.load_state_dict(checkpoint["gnn"].state_dict())
                 group_optim.load_state_dict(checkpoint["optimiser"].state_dict())
 
+    def update_info(self, info):
+        for i in range(len(info)):
+            info[i]["predator_similarity"] = self.info_update_buffer["predator_similarity"][i]
+        return info
+    
     def _query_actors(self, obss, hiddens, group_id):
         group_encoder = self.groups_encoder[group_id]
         group_gnn = self.groups_gnn[group_id]
@@ -142,7 +163,8 @@ class A2CGNN(A2C):
         group_obss = [obss[i] for i in agent_group]
         # Encoder Observations
         group_obss = group_encoder(torch.stack(group_obss))
-        group_obss = group_gnn(group_obss)
+        group_obss, _ = group_gnn(group_obss)
+        self.info_update_buffer["predator_similarity"] = similarity(group_obss.clone().detach().numpy())[0]
         return group_actors(group_obss, hiddens[agent_group])
 
     def _query_critics(self, obss, hiddens, group_id, evaluation=False):
@@ -158,7 +180,7 @@ class A2CGNN(A2C):
             group_obss = [obss[i] for i in agent_group]
             # Encoder Observations
             group_obss = group_encoder(torch.stack(group_obss))
-            group_obss = group_gnn(group_obss)
+            group_obss, _ = group_gnn(group_obss)
             values, new_hiddens = group_critics(group_obss, hiddens[agent_group])
         return values, new_hiddens
 
@@ -175,6 +197,6 @@ class A2CGNN(A2C):
             group_obss = [obss[i] for i in agent_group]
             # Encoder Observations
             group_obss = group_encoder(torch.stack(group_obss))
-            group_obss = group_gnn(group_obss)
+            group_obss, _ = group_gnn(group_obss)
             values, new_hiddens = group_critics(group_obss, hiddens[agent_group])
         return values, new_hiddens
