@@ -48,14 +48,13 @@ class GATNetwork(nn.Module):
                  is_concat: bool = False,
                  dropout: float = 0.6,
                  leaky_relu_negative_slope: float = 0.2,
-                 share_weights: bool = False,
-                 residual_connections: bool = True):
+                 share_weights: bool = False
+                 ):
         super(GATNetwork, self).__init__()
 
         self.is_concat = is_concat
         self.n_heads = n_heads
         self.share_weights = share_weights
-        self.residual_connections = residual_connections
         if is_concat:
             assert out_features % n_heads == 0
             self.n_hidden = out_features // n_heads
@@ -105,8 +104,6 @@ class GATNetwork(nn.Module):
         else:
             attn_res = attn_res.mean(dim=3)
         
-        if self.residual_connections:
-            attn_res += attn_res + h
         attn_res = attn_res.permute(2, 0, 1, 3)
         return attn_res, a
 
@@ -117,14 +114,13 @@ class GATv2Network(nn.Module):
                  is_concat: bool = False,
                  dropout: float = 0.6,
                  leaky_relu_negative_slope: float = 0.2,
-                 share_weights: bool = False,
-                 residual_connections: bool = True):
+                 share_weights: bool = False
+                 ):
         super(GATv2Network, self).__init__()
 
         self.is_concat = is_concat
         self.n_heads = n_heads
         self.share_weights = share_weights
-        self.residual_connections = residual_connections
         if is_concat:
             assert out_features % n_heads == 0
             self.n_hidden = out_features // n_heads
@@ -147,10 +143,10 @@ class GATv2Network(nn.Module):
         # h has shape (agents_nr, samples_nr, process_nr, encoder_dim)
         agents_nr, samples_nr, process_nr, encoder_dim = h.shape
         # h change shape to (samples_nr, process_nr, agents_nr, encoder_dim)
-        h = h.permute(1, 2, 0, 3)
+        h_ = h.permute(1, 2, 0, 3)
         # Left and right transformations (W_l*h and W_r*h)
-        g_l = self.linear_l(h).view(samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden)
-        g_r = self.linear_r(h).view(samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden)
+        g_l = self.linear_l(h_).view(samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden)
+        g_r = self.linear_r(h_).view(samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden)
         # Chance g_l dim to (samples_nr, process_nr, agents_nr*agents_nr, encoder_dim)
         g_l_repeat = g_l.repeat(1, 1, agents_nr, 1, 1)
         # Chance g_r dim to (samples_nr, process_nr, agents_nr*agents_nr, encoder_dim) BUT interleaved
@@ -161,7 +157,7 @@ class GATv2Network(nn.Module):
         e = e.squeeze(-1)
 
         # Remove self loops
-        mask = torch.zeros((1, 1, agents_nr, agents_nr, 1), device=h.device)
+        mask = torch.zeros((1, 1, agents_nr, agents_nr, 1), device=h_.device)
         mask = torch.diagonal_scatter(mask, torch.ones(1, 1, 1, agents_nr), dim1=2, dim2=3).bool()
         e.masked_fill_(mask,  float('-inf'))
 
@@ -174,8 +170,6 @@ class GATv2Network(nn.Module):
         else:
             attn_res = attn_res.mean(dim=3)
         
-        if self.residual_connections:
-            attn_res += attn_res + h
         attn_res = attn_res.permute(2, 0, 1, 3)
         return attn_res, a
 
