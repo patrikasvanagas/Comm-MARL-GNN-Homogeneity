@@ -64,7 +64,6 @@ class A2CGNN(A2C):
                 self.groups_gnn,
             )
         ]
-        
         self.group_saveables = [
             {
                 "actors": actors.state_dict(),
@@ -76,12 +75,12 @@ class A2CGNN(A2C):
             for actors, critics, encoder, optim, gnn in zip(
                 self.groups_actors,
                 self.groups_critics,
-                self.groups_optimisers,
                 self.groups_encoder,
+                self.groups_optimisers,
                 self.groups_gnn,
             )
         ]
-
+        self.device = cfg.model.device
         self.info_update_buffer = {}
 
         print("Agent encoders & GNNs:")
@@ -93,13 +92,13 @@ class A2CGNN(A2C):
             print(encoder)
             print(gnn)
 
-    def save(self, save_dir, episode):
-        ep_save_dir = os.path.join(save_dir, f"e_{episode}")
+    def save(self, save_dir, step):
+        ep_save_dir = os.path.join(save_dir, f"s_{step}")
         os.makedirs(ep_save_dir, exist_ok=True)
 
-        for agent_group, group_saveable in zip(self.agent_groups, self.group_saveables):
-            agent_group_str = str(agent_group)[1:-1].replace(" ", "").replace(",", "")
-            model_name = f"model_group{agent_group_str}_e{episode}.pt"
+        for agent_group, group_saveable in zip(range(len(self.agent_groups)), self.group_saveables):
+            agent_group_str = str(agent_group).replace(" ", "").replace(",", "")
+            model_name = f"model_group{agent_group_str}_e{step}.pt"
             model_path = os.path.join(ep_save_dir, model_name)
             torch.save(group_saveable, model_path)
         return ep_save_dir
@@ -112,7 +111,6 @@ class A2CGNN(A2C):
             group_ids = f.split("_")[1][5:]
             model_path = os.path.join(path, f)
             model_per_group[group_ids] = model_path
-
         for (
             agent_group,
             group_actors,
@@ -121,7 +119,7 @@ class A2CGNN(A2C):
             group_encoder,
             group_gnn,
         ) in zip(
-            self.agent_groups,
+            range(len(self.agent_groups)),
             self.groups_actors,
             self.groups_critics,
             self.groups_optimisers,
