@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import numpy as np
 import torch.nn.functional as F
+import math
 
 
 def _init_layer(m):
@@ -194,6 +195,11 @@ class AttentionMechanism(nn.Module):
         self.W_Q = nn.Linear(encoding_dim, d_K)
         self.W_V = nn.Linear(encoding_dim, d_K)
         self.W_out = nn.Linear(d_K, encoding_dim)
+
+        nn.init.xavier_uniform_(self.W_K.weight, gain=math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_Q.weight, gain=math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_V.weight, gain=math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_out.weight, gain=math.sqrt(2))
 
     def forward(self, encodings):
         """
