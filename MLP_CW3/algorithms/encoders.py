@@ -191,15 +191,20 @@ class AttentionMechanism(nn.Module):
         self.d_K = d_K
         self.no_attention_to_self = no_attention_to_self
 
-        self.W_K = nn.Linear(encoding_dim, d_K)
-        self.W_Q = nn.Linear(encoding_dim, d_K)
-        self.W_V = nn.Linear(encoding_dim, d_K)
-        self.W_out = nn.Linear(d_K, encoding_dim)
+        self.W_K = nn.Linear(encoding_dim, d_K, bias=True)
+        self.W_Q = nn.Linear(encoding_dim, d_K, bias=True)
+        self.W_V = nn.Linear(encoding_dim, d_K, bias=True)
+        self.W_out = nn.Linear(d_K, encoding_dim, bias=True)
 
-        nn.init.xavier_uniform_(self.W_K.weight, gain=math.sqrt(2))
-        nn.init.xavier_uniform_(self.W_Q.weight, gain=math.sqrt(2))
-        nn.init.xavier_uniform_(self.W_V.weight, gain=math.sqrt(2))
-        nn.init.xavier_uniform_(self.W_out.weight, gain=math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_K.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_Q.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_V.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_out.weight, gain=1 / math.sqrt(2))
+
+        nn.init.constant_(self.W_K.bias, 0.)
+        nn.init.constant_(self.W_Q.bias, 0.)
+        nn.init.constant_(self.W_V.bias, 0.)
+        nn.init.constant_(self.W_out.bias, 0.)
 
     def forward(self, encodings):
         """
