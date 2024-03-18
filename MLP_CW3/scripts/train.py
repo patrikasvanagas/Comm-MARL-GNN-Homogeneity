@@ -2,6 +2,7 @@ from MLP_CW3.utils.envs import make_env
 from MLP_CW3.algorithms.algorithm import make_alg
 from MLP_CW3.algorithms.utils.buffer import MultiAgentRolloutBuffer
 from MLP_CW3.algorithms.utils.logger import PrintLogger, WandbLogger
+from MLP_CW3.scripts.evaluate import evaluate
 import random
 
 import hydra
@@ -9,6 +10,12 @@ import numpy as np
 from collections import deque, defaultdict
 from omegaconf import DictConfig
 import torch
+
+def update_step_infos(infos, step_infos):
+    for info, step_info in zip(infos, step_infos):
+        for k, v in info.items():
+            step_info[k].append(v)
+    return step_infos
 
 def train(
     total_num_env_steps,
@@ -48,6 +55,7 @@ def train(
     num_steps = 0
     completed_episodes = 0
     last_log_t = 0
+    last_eval_t = 0
     step_infos = [defaultdict(list) for _ in range(cfg.env.parallel_envs)]
     while num_steps < total_num_env_steps:
         # Query storage for latest observation & hiddens 
@@ -67,9 +75,7 @@ def train(
                         dones,
                         )
         # update step buffer
-        for info, step_info in zip(infos, step_infos):
-            for k, v in info.items():
-                step_info[k].append(v)
+        step_infos = update_step_infos(infos, step_infos)
         # log episode data for completed episodes
         assert sum(dones) in [0, cfg.env.parallel_envs]; f"Right now only synchronous env termination is accepted {dones}"
         if all(dones):
@@ -79,10 +85,22 @@ def train(
                     all_infos.append(info)
                     logger.log_episode(num_steps, info, step_infos[i], agent_groups)
             # Reset environment and initialize storage
+            step_infos = [defaultdict(list) for _ in range(cfg.env.parallel_envs)]
+            if eval_interval and (num_steps >= last_eval_t + eval_interval):
+                evaluate(
+                    cfg,
+                    cfg.env.parallel_envs,
+                    episodes_per_eval,
+                    envs,
+                    alg,
+                    logger,
+                    num_steps,
+                    cfg.env,
+                    agent_groups
+                )
+                last_eval_t = num_steps
             obs = envs.reset()
             marl_storage.init_obs_hiddens(obs)
-            step_infos = [defaultdict(list) for _ in range(cfg.env.parallel_envs)]
-        
         num_steps += cfg.env.parallel_envs
 
         update_step = num_steps // cfg.env.parallel_envs
@@ -106,16 +124,15 @@ def train(
 
 @hydra.main(config_path="../configs", config_name="default")
 def main(cfg: DictConfig):
-    # if cfg.training.logger == "wandb":
-    print(cfg)
-    logger = WandbLogger(
-        team_name="mlpcw3",
-        project_name="mpl_cw3_runs",
-        mode="offline",
-        cfg=cfg
-    )
-    # else:
-    #     logger = PrintLogger(cfg)
+    if cfg.training.logger == "wandb":
+        logger = WandbLogger(
+            team_name="mlpcw3",
+            project_name="mpl_cw3_runs",
+            mode="offline",
+            cfg=cfg
+        )
+    else:
+        logger = PrintLogger(cfg)
     logger.training_mode()
     if cfg.seed is not None:
         torch.manual_seed(cfg.seed)

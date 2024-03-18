@@ -151,8 +151,12 @@ class A2CGNN(A2C):
                 group_optim.load_state_dict(checkpoint["optimiser"].state_dict())
 
     def update_info(self, info):
-        for i in range(len(info)):
-            info[i]["predator_similarity"] = self.info_update_buffer["predator_similarity"][i]
+        for group_id in range(len(self.agent_groups)):
+            for i in range(len(info)):
+                info[i][f"predator_similarity_{group_id}"] = self.info_update_buffer[f"predator_similarity_{group_id}"][i]
+                info[i][f"encoder_similarity_{group_id}"] = self.info_update_buffer[f"encoder_similarity_{group_id}"][i]
+                info[i][f"attention_maps_{group_id}"] = self.info_update_buffer[f"attention_maps_{group_id}"][i]
+
         return info
     
     def _query_actors(self, obss, hiddens, group_id):
@@ -164,8 +168,10 @@ class A2CGNN(A2C):
         group_obss = [obss[i] for i in agent_group]
         # Encoder Observations
         group_obss = group_encoder(torch.stack(group_obss))
-        group_obss_gnn, _ = group_gnn(group_obss)
-        self.info_update_buffer["predator_similarity"] = similarity(group_obss.clone().detach().numpy())[0]
+        self.info_update_buffer[f"encoder_similarity_{group_id}"] = similarity(group_obss.clone().detach().numpy())[0]
+        group_obss_gnn, attention_maps = group_gnn(group_obss)
+        self.info_update_buffer[f"predator_similarity_{group_id}"] = similarity(group_obss.clone().detach().numpy())[0]
+        self.info_update_buffer[f"attention_maps_{group_id}"] = attention_maps.clone().detach().numpy()[0]
         if self.gnn_residual_connections:
             group_obss_gnn += group_obss
         return group_actors(group_obss_gnn, hiddens[agent_group])

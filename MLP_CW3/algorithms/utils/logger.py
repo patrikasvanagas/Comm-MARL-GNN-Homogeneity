@@ -7,7 +7,7 @@ import os
 import shutil
 import time
 from typing import Dict
-
+import wandb
 import numpy as np
 from omegaconf import OmegaConf, DictConfig
 
@@ -105,6 +105,9 @@ class Logger(ABC):
     def failed_run(self):
         pass
     
+    def log_heatmap(self, timestep, heat_map, main_label="Train"):
+        pass
+
     def log_progress(
         self, infos, update, step, total_steps, groups,
     ):
@@ -134,7 +137,7 @@ class Logger(ABC):
         info["episode_reward"] = sum(info["episode_reward"])
         to_remove_keys = ["terminal_observation"]
         for k in info.keys():
-            if "ground_rew" in k or "pos_rew" in k:
+            if "attention_maps" in k:
                 to_remove_keys.append(k)
         for k in to_remove_keys:
             if k in info:
@@ -144,11 +147,14 @@ class Logger(ABC):
 
         group_returns = ""
 
-        if "predator_similarity" in step_info:
-            log_dict[f"{main_label}/predator_similarity_mean"] = np.mean(step_info["predator_similarity"])
-            log_dict[f"{main_label}/predator_similarity_std"] = np.std(step_info["predator_similarity"])
-
         for group_id, agent_group in enumerate(groups):
+            if f"encoder_similarity_{group_id}" in step_info:
+                log_dict[f"{main_label}/encoder_similarity_mean_{group_id}"] = np.mean(step_info[f"encoder_similarity_{group_id}"])
+                log_dict[f"{main_label}/encoder_similarity_std_{group_id}"] = np.std(step_info[f"encoder_similarity_{group_id}"])
+
+            if f"predator_similarity_{group_id}" in step_info:
+                log_dict[f"{main_label}/predator_similarity_mean_{group_id}"] = np.mean(step_info[f"predator_similarity_{group_id}"])
+                log_dict[f"{main_label}/predator_similarity_std_{group_id}"] = np.std(step_info[f"predator_similarity_{group_id}"])
             mean_return = sum([info[f"agent{agent_id}/episode_reward"].sum() for agent_id in agent_group]) / len(agent_group)
             log_dict[f"{main_label}/group_{group_id}_mean_return"] = mean_return
             group_returns += f" Group {group_id}: {mean_return:.3f}"
@@ -242,6 +248,10 @@ class WandbLogger(Logger):
         wandb_save_dir = os.path.join(self.wandb.dir, path)
         os.makedirs(wandb_save_dir, exist_ok=True)
         shutil.copytree(path, wandb_save_dir, dirs_exist_ok=True)
+    
+    def log_heatmap(self, timestep, heat_map, main_label="Train"):
+        agent_labels = [f"agent_{i}" for i in range(len(heat_map))]
+        self.wandb.log({f'{main_label}/attention_heatmap/{timestep}': wandb.plots.HeatMap(agent_labels, agent_labels, heat_map, show_text=False)})
 
     def log_progress(self, infos, update, step, total_steps, groups):
         super().log_progress(infos, update, step, total_steps, groups)
