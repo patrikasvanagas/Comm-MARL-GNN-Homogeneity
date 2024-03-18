@@ -105,7 +105,7 @@ class GATNetwork(nn.Module):
             attn_res = attn_res.mean(dim=3)
         
         attn_res = attn_res.permute(2, 0, 1, 3)
-        return attn_res, a
+        return attn_res, a.squeeze(-1)
 
 class GATv2Network(nn.Module):  
     def __init__(self, in_features: int, 
@@ -171,7 +171,7 @@ class GATv2Network(nn.Module):
             attn_res = attn_res.mean(dim=3)
         
         attn_res = attn_res.permute(2, 0, 1, 3)
-        return attn_res, a
+        return attn_res, a.squeeze(-1)
 
 class AttentionMechanism(nn.Module):
     def __init__(self, encoding_dim, d_K, no_attention_to_self=True):

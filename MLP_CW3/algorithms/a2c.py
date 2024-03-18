@@ -25,6 +25,7 @@ class A2C(Algorithm):
         self.groups_critics = []
         self.groups_tar_critics = []
         self.id_group_mapping = {} 
+        self.recurrent = cfg.model.recurrent
 
         for group_id, agent_group in enumerate(agent_groups):
             self.id_group_mapping = self.id_group_mapping | {agent_id:group_id for agent_id in agent_group}
