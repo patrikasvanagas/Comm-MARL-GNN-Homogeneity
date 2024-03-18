@@ -8,7 +8,8 @@ from MLP_CW3.algorithms.encoders import (
     Encoder,
     GATNetwork,
     GATv2Network,
-    AttentionMechanism,
+    AttentionMechanism_v1,
+    AttentionMechanism_v2
 )
 from MLP_CW3.algorithms.similarity import similarity
 from gym.spaces.utils import flatdim
@@ -16,7 +17,7 @@ from gym.spaces.utils import flatdim
 GNN_MODELS_MAP = {
     "gat": GATNetwork,
     "gatv2": GATv2Network,
-    "self_attention": AttentionMechanism,
+    "self_attention": AttentionMechanism_v2,
 }
 
 class A2CGNN(A2C):
@@ -158,15 +159,22 @@ class A2CGNN(A2C):
         return info
     
     def _query_actors(self, obss, hiddens, group_id):
+        # obs - list of 1d tensor of observation for every agent, list, of 25-dim vectors
+
+
+
         group_encoder = self.groups_encoder[group_id]
         group_gnn = self.groups_gnn[group_id]
 
         agent_group = self.agent_groups[group_id]
         group_actors = self.groups_actors[group_id]
+        # group_obs - a list of 1d tensors, each tensor is a vector of 128 elements.
         group_obss = [obss[i] for i in agent_group]
         # Encoder Observations
+        # group_obss - a tensor of 
         group_obss = group_encoder(torch.stack(group_obss))
         self.info_update_buffer[f"encoder_similarity_{group_id}"] = similarity(group_obss.clone().detach().numpy())[0]
+        # print(f"In query actors, group_obss shape: {group_obss.shape}. ")
         group_obss_gnn, attention_maps = group_gnn(group_obss)
         self.info_update_buffer[f"predator_similarity_{group_id}"] = similarity(group_obss.clone().detach().numpy())[0]
         self.info_update_buffer[f"attention_maps_{group_id}"] = attention_maps.clone().detach().numpy()[0]
