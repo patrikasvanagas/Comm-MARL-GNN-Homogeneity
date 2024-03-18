@@ -19,19 +19,19 @@ class Encoder(nn.Module):
         use_embedding=False,
         embedding_dim=20,
         n_token=1000,
+        device="cpu"
     ):
         super(Encoder, self).__init__()
         self.observation_size = observation_size
         self.use_embedding = use_embedding
-
+        self.device=device
         if use_embedding:
             self.observation_size = self.observation_size * embedding_dim
             self.embedding = nn.Embedding(n_token, embedding_dim, dtype=torch.float32)
 
         self.net = nn.Sequential(
-            _init_layer(nn.Linear(self.observation_size, hidden_size)),
+            _init_layer(nn.Linear(self.observation_size, hidden_size, device=device)),
         )
-        self.train()
 
     def forward(self, observation):
         if self.use_embedding:

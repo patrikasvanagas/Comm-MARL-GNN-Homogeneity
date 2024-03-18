@@ -9,6 +9,7 @@ import hydra
 import numpy as np
 from collections import deque, defaultdict
 from omegaconf import DictConfig
+from pathlib import Path
 import torch
 
 def update_step_infos(infos, step_infos):
@@ -55,6 +56,7 @@ def train(
     num_steps = 0
     completed_episodes = 0
     last_log_t = 0
+    last_save_t = 0
     last_eval_t = 0
     step_infos = [defaultdict(list) for _ in range(cfg.env.parallel_envs)]
     while num_steps < total_num_env_steps:
@@ -98,10 +100,18 @@ def train(
                     cfg.env,
                     agent_groups
                 )
-                last_eval_t = num_steps
+                last_eval_t = num_steps    
             obs = envs.reset()
             marl_storage.init_obs_hiddens(obs)
         num_steps += cfg.env.parallel_envs
+
+        if save_interval and (num_steps >= last_save_t + save_interval):
+            models_dir_name = "models"
+            save_dir = Path(models_dir_name)
+            save_at = save_dir / f"{cfg.env.name}_{cfg.alg.name}_{cfg.seed}_t_{num_steps}"
+            save_at.mkdir(parents=True, exist_ok=True)
+            alg.save(save_at, num_steps)
+            last_save_t = num_steps
 
         update_step = num_steps // cfg.env.parallel_envs
         # Agents update logic

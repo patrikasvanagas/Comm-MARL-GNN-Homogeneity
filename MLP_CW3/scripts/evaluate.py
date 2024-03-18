@@ -1,10 +1,29 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pathlib import Path
 from collections import defaultdict
-
+from MLP_CW3.utils.envs import make_env
+from MLP_CW3.algorithms.algorithm import make_alg
+from MLP_CW3.algorithms.utils.logger import PrintLogger, WandbLogger
+from omegaconf import DictConfig
+import random
 import hydra
 import numpy as np
 import torch
+
+def parse_args():
+    """
+    Parse system arguments given to function
+    :return: system arguments
+    """
+    parser = ArgumentParser(description="Run evaluation", formatter_class=ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument("--path", required=True, type=str, help="Path to model files")
+    parser.add_argument("--env", required=True, type=str, help="Name of environment file name (without folder structure or .yaml suffix)")
+    parser.add_argument("--num_episodes", default=1, type=int, help="Number of eval episodes")
+
+    # overwriting default hyperparameters with these
+    args = parser.parse_args()
+    return args
 
 def _squash_info(info):
     info = [i for i in info if i]
@@ -93,3 +112,46 @@ def evaluate(
         logger.log_episode(total_steps, eval_info, step_infos, agent_groups,main_label="Eval")
     return eval_info, all_task_embeddings
 
+
+@hydra.main(config_path="../configs", config_name="default")
+def main(cfg: DictConfig):
+    if cfg.training.logger == "wandb":
+        logger = WandbLogger(
+            team_name="mlpcw3",
+            project_name="mpl_cw3_runs",
+            mode="offline",
+            cfg=cfg
+        )
+    else:
+        logger = PrintLogger(cfg)
+    if cfg.seed is not None:
+        torch.manual_seed(cfg.seed)
+        torch.cuda.manual_seed(cfg.seed)
+        np.random.seed(cfg.seed)
+        random.seed(cfg.seed)
+
+    logger.info("Initialising environment")
+    envs = make_env(cfg.seed, cfg.env)
+    agent_groups = [
+        [i for i in range(cfg.env.arguments.num_adversaries)],
+        [cfg.env.arguments.num_adversaries + i for i in range(cfg.env.arguments.num_good)],
+        ]
+    alg = make_alg(cfg.alg, 
+                   envs.observation_space,
+                   envs.action_space,
+                   agent_groups
+                   )
+    alg.restore(alg.load_run_path)
+    evaluate(
+        cfg,
+        cfg.env.parallel_envs,
+        cfg.training.episodes_per_eval,
+        envs,
+        alg,
+        logger,
+        0,
+        cfg.env,
+        agent_groups
+    )
+if __name__ == "__main__":
+    main()
