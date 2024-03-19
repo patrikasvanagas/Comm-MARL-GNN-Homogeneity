@@ -8,7 +8,6 @@ from MLP_CW3.algorithms.encoders import (
     Encoder,
     GATNetwork,
     GATv2Network,
-    AttentionMechanism_v1,
     AttentionMechanism_v2
 )
 from MLP_CW3.algorithms.similarity import similarity

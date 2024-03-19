@@ -362,7 +362,7 @@ class AttentionMechanism_v2(nn.Module):
         q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / math.sqrt(encoding_dim)
 
         if self.use_masking:
-            mask = ~torch.eye(num_agents, dtype=torch.bool).unsqueeze(0).unsqueeze(0)
+            mask = ~torch.eye(num_agents, dtype=torch.bool).unsqueeze(0)
             q_dot_k = q_dot_k.masked_fill(~mask, float("-inf"))
 
         q_dot_k = F.softmax(q_dot_k, dim=2)
