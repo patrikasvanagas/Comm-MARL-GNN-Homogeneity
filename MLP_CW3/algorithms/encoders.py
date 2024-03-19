@@ -300,16 +300,6 @@ class AttentionMechanism_v2(nn.Module):
         leaky_relu_negative_slope: float = 0.2,
         share_weights: bool = False,
     ):
-        """
-        Initializes the attention mechanism module from
-        https://arxiv.org/pdf/1906.01202.pdf (p. 4)
-
-        Parameters:
-        - encoding_dim: The dimension of the agent state encoding.
-        - d_K: The dimensionality of the key and query vectors.
-        - no_attention_to_self: If True, the attention mechanism will not
-        allow agents to attend to themselves.
-        """
         super(AttentionMechanism_v2, self).__init__()
         self.encoding_dim = encoding_dim
 
@@ -317,6 +307,9 @@ class AttentionMechanism_v2(nn.Module):
         self.W_Q = nn.Linear(encoding_dim, encoding_dim, bias=True)
         self.W_V = nn.Linear(encoding_dim, encoding_dim, bias=True)
         self.W_out = nn.Linear(encoding_dim, encoding_dim, bias=True)
+
+        self.input_layer_norm = nn.LayerNorm(encoding_dim)
+        self.output_layer_norm = nn.LayerNorm(encoding_dim)
 
         nn.init.xavier_uniform_(self.W_K.weight, gain=1 / math.sqrt(2))
         nn.init.xavier_uniform_(self.W_Q.weight, gain=1 / math.sqrt(2))
@@ -345,6 +338,9 @@ class AttentionMechanism_v2(nn.Module):
 
         num_agents, batch_size, num_envs, encoding_dim = encodings.shape
 
+        # PRIDEJAU DABAR
+        encodings = self.input_layer_norm(encodings)
+
         # (num_agents, batch_size, num_envs, encoding_dim)
         # -> (batch_size, num_envs, num_agents, encoding_dim)
         encodings = encodings.permute(1, 2, 0, 3).contiguous()
@@ -369,6 +365,9 @@ class AttentionMechanism_v2(nn.Module):
         # -> (batch_size * num_envs, num_agents, encoding_dim)
         attention = torch.bmm(q_dot_k, Values)
 
+        # PRIDEJAU DBR
+        attention = self.output_layer_norm(attention)
+
         # (batch_size * num_envs, num_agents, encoding_dim)
         # x (encoding_dim, encoding_dim)
         # -> (batch_size * num_envs, num_agents, encoding_dim)
@@ -383,7 +382,8 @@ class AttentionMechanism_v2(nn.Module):
         attention = attention.permute(2, 1, 0, 3).contiguous()
 
         # (batch_size * num_envs, num_agents, num_agents)
-        # -> (num_agents, batch_size, num_agents, num_agents)
+        # -> (batch_size, num_envs, num_agents, num_agents)
         attention_weights = q_dot_k.view(batch_size, num_envs, num_agents, num_agents)
+        
 
         return attention, attention_weights
