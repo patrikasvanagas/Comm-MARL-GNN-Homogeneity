@@ -308,8 +308,103 @@ class AttentionMechanism_v2(nn.Module):
         self.W_V = nn.Linear(encoding_dim, encoding_dim, bias=True)
         self.W_out = nn.Linear(encoding_dim, encoding_dim, bias=True)
 
-        self.input_layer_norm = nn.LayerNorm(encoding_dim)
-        self.output_layer_norm = nn.LayerNorm(encoding_dim)
+        nn.init.xavier_uniform_(self.W_K.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_Q.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_V.weight, gain=1 / math.sqrt(2))
+        nn.init.xavier_uniform_(self.W_out.weight, gain=1 / math.sqrt(2))
+
+        nn.init.constant_(self.W_K.bias, 0.0)
+        nn.init.constant_(self.W_Q.bias, 0.0)
+        nn.init.constant_(self.W_V.bias, 0.0)
+        nn.init.constant_(self.W_out.bias, 0.0)
+
+    def forward(self, encodings):
+        """
+        Forward pass of the attention mechanism.
+
+        Parameters:
+        - encodings: Tensor of shape (n_agents, batch_size, number of envs,
+        encoding dim), the encodings h_i for each agent.
+
+        Returns:
+        - attention: The aggregated and transformed value for each agent
+          of shape (n_agents, batch_size, number of envs, encoding dim)
+        # - attention_weights: The attention weights for each agent
+        #   of shape (n_agents, batch_size, number of envs, number of agents)
+        """
+
+        num_agents, batch_size, num_envs, encoding_dim = encodings.shape
+
+        # (num_agents, batch_size, num_envs, encoding_dim)
+        # -> (batch_size, num_envs, num_agents, encoding_dim)
+        encodings = encodings.permute(1, 2, 0, 3).contiguous()
+
+        Keys = self.W_K(encodings).view(batch_size * num_envs, num_agents, encoding_dim)
+        Queries = self.W_Q(encodings).view(
+            batch_size * num_envs, num_agents, encoding_dim
+        )
+        Values = self.W_V(encodings).view(
+            batch_size * num_envs, num_agents, encoding_dim
+        )
+
+        # (batch_size * num_envs, num_agents, encoding_dim)
+        # x (batch_size * num_envs, encoding_dim, num_agents)
+        # -> (batch_size * num_envs, num_agents, num_agents)
+        q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / math.sqrt(encoding_dim)
+
+        q_dot_k = F.softmax(q_dot_k, dim=2)
+
+        q_dot_k = F.dropout(q_dot_k, p=0.1, training=self.training)
+
+        # (batch_size * num_envs, num_agents, num_agents)
+        # x (batch_size * num_envs, num_agents, encoding_dim)
+        # -> (batch_size * num_envs, num_agents, encoding_dim)
+        attention = torch.bmm(q_dot_k, Values)
+
+        # (batch_size * num_envs, num_agents, encoding_dim)
+        # x (encoding_dim, encoding_dim)
+        # -> (batch_size * num_envs, num_agents, encoding_dim)
+        attention = self.W_out(attention)
+
+        # (batch_size * num_envs, num_agents, encoding_dim)
+        # -> (num_envs, batch_size, num_agents, encoding_dim)
+        attention = attention.view(num_envs, batch_size, num_agents, encoding_dim)
+
+        # (num_envs, batch_size, num_agents, encoding_dim)
+        # -> (num_agents, batch_size, num_envs, encoding_dim)
+        attention = attention.permute(2, 1, 0, 3).contiguous()
+
+        # (batch_size * num_envs, num_agents, num_agents)
+        # -> (batch_size, num_envs, num_agents, num_agents)
+        attention_weights = q_dot_k.view(batch_size, num_envs, num_agents, num_agents)
+
+        return attention, attention_weights
+    
+
+class CommMultiHeadAttention(nn.Module):
+    def __init__(
+        self,
+        encoding_dim=128,
+        out_features: int = 128,
+        n_heads: int = 4,  # labas rytas!
+        is_concat: bool = False,
+        dropout: float = 0.1,
+        leaky_relu_negative_slope: float = 0.2,
+        share_weights: bool = False,
+    ):
+        super(CommMultiHeadAttention, self).__init__()
+        self.encoding_dim = encoding_dim
+
+        self.n_heads = n_heads
+        self.dropout = dropout
+
+        self.head_embed_size = encoding_dim // n_heads
+        self.head_scaling = math.sqrt(self.head_embed_size)
+
+        self.W_K = nn.Linear(encoding_dim, encoding_dim, bias=True)
+        self.W_Q = nn.Linear(encoding_dim, encoding_dim, bias=True)
+        self.W_V = nn.Linear(encoding_dim, encoding_dim, bias=True)
+        self.W_out = nn.Linear(encoding_dim, encoding_dim, bias=True)
 
         nn.init.xavier_uniform_(self.W_K.weight, gain=1 / math.sqrt(2))
         nn.init.xavier_uniform_(self.W_Q.weight, gain=1 / math.sqrt(2))
@@ -338,13 +433,11 @@ class AttentionMechanism_v2(nn.Module):
 
         num_agents, batch_size, num_envs, encoding_dim = encodings.shape
 
-        # PRIDEJAU DABAR
-        encodings = self.input_layer_norm(encodings)
-
         # (num_agents, batch_size, num_envs, encoding_dim)
         # -> (batch_size, num_envs, num_agents, encoding_dim)
         encodings = encodings.permute(1, 2, 0, 3).contiguous()
 
+        # (batch_size * num_envs, num_agents, encoding_dim)
         Keys = self.W_K(encodings).view(batch_size * num_envs, num_agents, encoding_dim)
         Queries = self.W_Q(encodings).view(
             batch_size * num_envs, num_agents, encoding_dim
@@ -354,19 +447,62 @@ class AttentionMechanism_v2(nn.Module):
         )
 
         # (batch_size * num_envs, num_agents, encoding_dim)
-        # x (batch_size * num_envs, encoding_dim, num_agents)
-        # -> (batch_size * num_envs, num_agents, num_agents)
-        q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / math.sqrt(encoding_dim)
+        # -> (batch_size * num_envs, num_agents, num_heads, head_embed_size)
+        Keys = Keys.view(
+            batch_size * num_envs, num_agents, self.n_heads, self.head_embed_size
+        )
+        Queries = Queries.view(
+            batch_size * num_envs, num_agents, self.n_heads, self.head_embed_size
+        )
+        Values = Values.view(
+            batch_size * num_envs, num_agents, self.n_heads, self.head_embed_size
+        )
+
+        # (batch_size * num_envs, num_agents, num_heads, head_embed_size)
+        # -> (batch_size * num_envs, num_heads, num_agents, head_embed_size)
+        Keys = Keys.transpose(1, 2).contiguous()
+        Queries = Queries.transpose(1, 2).contiguous()
+        Values = Values.transpose(1, 2).contiguous()
+
+        # (batch_size * num_envs, num_heads, num_agents, head_embed_size)
+        # -> (batch_size * num_envs * num_heads, num_agents, head_embed_size)
+        Keys = Keys.view(
+            batch_size * num_envs * self.n_heads, num_agents, self.head_embed_size
+        )
+        Queries = Queries.view(
+            batch_size * num_envs * self.n_heads, num_agents, self.head_embed_size
+        )
+        Values = Values.view(
+            batch_size * num_envs * self.n_heads, num_agents, self.head_embed_size
+        )
+
+        # (batch_size * num_envs * num_heads, num_agents, head_embed_size)
+        # x (batch_size * num_envs * num_heads, head_embed_size, num_agents)
+        # -> (batch_size * num_envs * num_heads, num_agents, num_agents)
+        q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / self.head_scaling
 
         q_dot_k = F.softmax(q_dot_k, dim=2)
 
-        # (batch_size * num_envs, num_agents, num_agents)
-        # x (batch_size * num_envs, num_agents, encoding_dim)
-        # -> (batch_size * num_envs, num_agents, encoding_dim)
+        q_dot_k = F.dropout(q_dot_k, p=self.dropout, training=self.training)
+
+        # (batch_size * num_envs * num_heads, num_agents, num_agents)
+        # x (batch_size * num_envs * num_heads, num_agents, head_embed_size)
+        # -> (batch_size * num_envs * num_heads, num_agents, head_embed_size)
         attention = torch.bmm(q_dot_k, Values)
 
-        # PRIDEJAU DBR
-        attention = self.output_layer_norm(attention)
+        # (batch_size * num_envs * num_heads, num_agents, head_embed_size)
+        # -> (batch_size * num_envs, num_heads, num_agents, head_embed_size)
+        attention = attention.view(
+            batch_size * num_envs, self.n_heads, num_agents, self.head_embed_size
+        )
+
+        # (batch_size * num_envs, num_heads, num_agents, head_embed_size)
+        # -> (batch_size * num_envs, num_agents, num_heads, head_embed_size)
+        attention = attention.transpose(1, 2).contiguous()
+
+        # (batch_size * num_envs, num_agents, num_heads, head_embed_size)
+        # -> (batch_size * num_envs, num_agents, encoding_dim)
+        attention = attention.view(batch_size * num_envs, num_agents, encoding_dim)
 
         # (batch_size * num_envs, num_agents, encoding_dim)
         # x (encoding_dim, encoding_dim)
@@ -381,9 +517,10 @@ class AttentionMechanism_v2(nn.Module):
         # -> (num_agents, batch_size, num_envs, encoding_dim)
         attention = attention.permute(2, 1, 0, 3).contiguous()
 
-        # (batch_size * num_envs, num_agents, num_agents)
-        # -> (batch_size, num_envs, num_agents, num_agents)
-        attention_weights = q_dot_k.view(batch_size, num_envs, num_agents, num_agents)
-        
+        # (batch_size * num_envs * num_heads, num_agents, num_agents)
+        # -> (batch_size, num_envs, num_heads, num_agents, num_agents)
+        attention_weights = q_dot_k.view(
+            batch_size, num_envs, self.n_heads, num_agents, num_agents
+        )
 
         return attention, attention_weights
