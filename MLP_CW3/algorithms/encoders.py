@@ -42,16 +42,19 @@ class Encoder(nn.Module):
 
         return self.net(observation)
 
-class GATNetwork(nn.Module):  
-    def __init__(self, in_features: int, 
-                 out_features: int, 
-                 n_heads: int,
-                 use_masking: bool,
-                 is_concat: bool = False,
-                 dropout: float = 0.6,
-                 leaky_relu_negative_slope: float = 0.2,
-                 share_weights: bool = False
-                 ):
+
+class GATNetwork(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        n_heads: int,
+        use_masking: bool,
+        is_concat: bool = False,
+        dropout: float = 0.6,
+        leaky_relu_negative_slope: float = 0.2,
+        share_weights: bool = False,
+    ):
         super(GATNetwork, self).__init__()
 
         self.is_concat = is_concat
@@ -107,8 +110,10 @@ class GATNetwork(nn.Module):
         if self.use_masking:
             # Remove self loops
             mask = torch.zeros((1, 1, agents_nr, agents_nr, 1), device=h.device)
-            mask = torch.diagonal_scatter(mask, torch.ones(1, 1, 1, agents_nr), dim1=2, dim2=3).bool()
-            e.masked_fill_(mask,  float('-inf'))
+            mask = torch.diagonal_scatter(
+                mask, torch.ones(1, 1, 1, agents_nr), dim1=2, dim2=3
+            ).bool()
+            e.masked_fill_(mask, float("-inf"))
 
         a = self.softmax(e)
         # a = self.dropout(a)
@@ -124,16 +129,19 @@ class GATNetwork(nn.Module):
         attn_res = attn_res.permute(2, 0, 1, 3)
         return attn_res, a.squeeze(-1)
 
-class GATv2Network(nn.Module):  
-    def __init__(self, in_features: int, 
-                 out_features: int, 
-                 n_heads: int,
-                 use_masking: bool,
-                 is_concat: bool = False,
-                 dropout: float = 0.6,
-                 leaky_relu_negative_slope: float = 0.2,
-                 share_weights: bool = False
-                 ):
+
+class GATv2Network(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        n_heads: int,
+        use_masking: bool,
+        is_concat: bool = False,
+        dropout: float = 0.6,
+        leaky_relu_negative_slope: float = 0.2,
+        share_weights: bool = False,
+    ):
         super(GATv2Network, self).__init__()
 
         self.is_concat = is_concat
@@ -189,8 +197,10 @@ class GATv2Network(nn.Module):
         if self.use_masking:
             # Remove self loops
             mask = torch.zeros((1, 1, agents_nr, agents_nr, 1), device=h_.device)
-            mask = torch.diagonal_scatter(mask, torch.ones(1, 1, 1, agents_nr), dim1=2, dim2=3).bool()
-            e.masked_fill_(mask,  float('-inf'))
+            mask = torch.diagonal_scatter(
+                mask, torch.ones(1, 1, 1, agents_nr), dim1=2, dim2=3
+            ).bool()
+            e.masked_fill_(mask, float("-inf"))
 
         a = self.softmax(e)
         # a = self.dropout(a)
@@ -293,13 +303,15 @@ class AttentionMechanism_v2(nn.Module):
         n_heads: int = 8,
         use_masking: bool = True,
         is_concat: bool = False,
-        dropout: float = 0.6,
+        dropout: float = 0.1,
         leaky_relu_negative_slope: float = 0.2,
         share_weights: bool = False,
     ):
         super(AttentionMechanism_v2, self).__init__()
         self.encoding_dim = encoding_dim
-        
+        self.use_masking = use_masking
+        self.dropout = dropout
+
         self.W_K = nn.Linear(encoding_dim, encoding_dim, bias=True)
         self.W_Q = nn.Linear(encoding_dim, encoding_dim, bias=True)
         self.W_V = nn.Linear(encoding_dim, encoding_dim, bias=True)
@@ -349,9 +361,13 @@ class AttentionMechanism_v2(nn.Module):
         # -> (batch_size * num_envs, num_agents, num_agents)
         q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / math.sqrt(encoding_dim)
 
+        if self.use_masking:
+            mask = ~torch.eye(num_agents, dtype=torch.bool).unsqueeze(0).unsqueeze(0)
+            q_dot_k = q_dot_k.masked_fill(~mask, float("-inf"))
+
         q_dot_k = F.softmax(q_dot_k, dim=2)
 
-        q_dot_k = F.dropout(q_dot_k, p=0.1, training=self.training)
+        q_dot_k = F.dropout(q_dot_k, p=self.dropout, training=self.training)
 
         # (batch_size * num_envs, num_agents, num_agents)
         # x (batch_size * num_envs, num_agents, encoding_dim)
@@ -376,7 +392,7 @@ class AttentionMechanism_v2(nn.Module):
         attention_weights = q_dot_k.view(batch_size, num_envs, num_agents, num_agents)
 
         return attention, attention_weights
-    
+
 
 class CommMultiHeadAttention(nn.Module):
     def __init__(
