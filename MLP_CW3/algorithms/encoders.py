@@ -337,9 +337,9 @@ class AttentionMechanism_v2(nn.Module):
 
         Returns:
         - attention: The aggregated and transformed value for each agent
-          of shape (n_agents, batch_size, number of envs, encoding dim)
+          of shape (num_agents, batch_size, num_envs, encoding_dim)
         # - attention_weights: The attention weights for each agent
-        #   of shape (n_agents, batch_size, number of envs, number of agents)
+        #   of shape (batch_size, num_envs, num_agents, num_agents)
         """
 
         num_agents, batch_size, num_envs, encoding_dim = encodings.shape
