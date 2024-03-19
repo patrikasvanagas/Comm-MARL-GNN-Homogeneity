@@ -37,6 +37,7 @@ class A2CGNN(A2C):
         self.groups_gnn = [GNN_MODELS_MAP[cfg.model.gnn_version](cfg.model.encoder_dim,
                                         cfg.model.encoder_dim,
                                         cfg.model.gnn_n_heads,
+                                        cfg.model.gnn_use_masking,
                                         cfg.model.gnn_is_concat,
                                         cfg.model.gnn_dropout,
                                         cfg.model.gnn_leaky_relu_negative_slope,

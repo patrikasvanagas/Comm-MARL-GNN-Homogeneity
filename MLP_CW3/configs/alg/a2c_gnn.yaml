@@ -14,8 +14,8 @@ alg:
     recurrent: False
     layernorm: True # layernorm after each hidden layer
     device: cpu
-    # gnn_version: gat
-    gnn_version: self_attention
+    gnn_version: gat
+    gnn_use_masking: True
     gnn_n_heads: 1
     gnn_is_concat: False
     gnn_dropout:  0.6
