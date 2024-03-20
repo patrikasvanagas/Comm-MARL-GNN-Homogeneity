@@ -335,11 +335,6 @@ class AttentionMechanism_v2(nn.Module):
         - encodings: Tensor of shape (n_agents, batch_size, number of envs,
         encoding dim), the encodings h_i for each agent.
 
-        Returns:
-        - attention: The aggregated and transformed value for each agent
-          of shape (num_agents, batch_size, num_envs, encoding_dim)
-        # - attention_weights: The attention weights for each agent
-        #   of shape (batch_size, num_envs, num_agents, num_agents)
         """
 
         num_agents, batch_size, num_envs, encoding_dim = encodings.shape
@@ -362,8 +357,8 @@ class AttentionMechanism_v2(nn.Module):
         q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / math.sqrt(encoding_dim)
 
         if self.use_masking:
-            mask = ~torch.eye(num_agents, dtype=torch.bool).unsqueeze(0)
-            q_dot_k = q_dot_k.masked_fill(~mask, float("-inf"))
+            mask = torch.eye(num_agents, dtype=torch.bool).unsqueeze(0)
+            q_dot_k = q_dot_k.masked_fill(mask, float("-inf"))
 
         q_dot_k = F.softmax(q_dot_k, dim=2)
 
@@ -399,7 +394,8 @@ class CommMultiHeadAttention(nn.Module):
         self,
         encoding_dim=128,
         out_features: int = 128,
-        n_heads: int = 4,  # labas rytas!
+        n_heads: int = 4,
+        use_masking: bool = True,
         is_concat: bool = False,
         dropout: float = 0.1,
         leaky_relu_negative_slope: float = 0.2,
@@ -410,6 +406,7 @@ class CommMultiHeadAttention(nn.Module):
 
         self.n_heads = n_heads
         self.dropout = dropout
+        self.use_masking = use_masking
 
         self.head_embed_size = encoding_dim // n_heads
         self.head_scaling = math.sqrt(self.head_embed_size)
@@ -436,12 +433,6 @@ class CommMultiHeadAttention(nn.Module):
         Parameters:
         - encodings: Tensor of shape (n_agents, batch_size, number of envs,
         encoding dim), the encodings h_i for each agent.
-
-        Returns:
-        - attention: The aggregated and transformed value for each agent
-          of shape (n_agents, batch_size, number of envs, encoding dim)
-        # - attention_weights: The attention weights for each agent
-        #   of shape (n_agents, batch_size, number of envs, number of agents)
         """
 
         num_agents, batch_size, num_envs, encoding_dim = encodings.shape
@@ -493,6 +484,10 @@ class CommMultiHeadAttention(nn.Module):
         # x (batch_size * num_envs * num_heads, head_embed_size, num_agents)
         # -> (batch_size * num_envs * num_heads, num_agents, num_agents)
         q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / self.head_scaling
+
+        if self.use_masking:
+            mask = torch.eye(num_agents, dtype=torch.bool).unsqueeze(0)
+            q_dot_k = q_dot_k.masked_fill(mask, float("-inf"))
 
         q_dot_k = F.softmax(q_dot_k, dim=2)
 
