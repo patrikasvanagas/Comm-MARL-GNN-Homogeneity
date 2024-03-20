@@ -8,7 +8,9 @@ from MLP_CW3.algorithms.encoders import (
     Encoder,
     GATNetwork,
     GATv2Network,
-    AttentionMechanism_v2
+    AttentionMechanism_v2,
+    AttentionMechanism_v3,
+    CommMultiHeadAttention
 )
 from MLP_CW3.algorithms.similarity import similarity
 from gym.spaces.utils import flatdim
@@ -16,7 +18,9 @@ from gym.spaces.utils import flatdim
 GNN_MODELS_MAP = {
     "gat": GATNetwork,
     "gatv2": GATv2Network,
-    "self_attention": AttentionMechanism_v2,
+    "attentionv2": AttentionMechanism_v2,
+    "attentionv3": AttentionMechanism_v3,
+    "mha": CommMultiHeadAttention
 }
 
 class A2CGNN(A2C):
