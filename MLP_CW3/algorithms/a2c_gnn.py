@@ -8,6 +8,7 @@ from MLP_CW3.algorithms.encoders import (
     Encoder,
     GATNetwork,
     GATv2Network,
+    GATv2Network_trainable_slope,
     AttentionMechanism_v2,
     AttentionMechanism_v3,
     CommMultiHeadAttention
@@ -18,6 +19,7 @@ from gym.spaces.utils import flatdim
 GNN_MODELS_MAP = {
     "gat": GATNetwork,
     "gatv2": GATv2Network,
+    "gatv2_trainable_slope": GATv2Network_trainable_slope,
     "attentionv2": AttentionMechanism_v2,
     "attentionv3": AttentionMechanism_v3,
     "mha": CommMultiHeadAttention

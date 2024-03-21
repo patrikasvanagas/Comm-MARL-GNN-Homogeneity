@@ -215,6 +215,107 @@ class GATv2Network(nn.Module):
 
         attn_res = attn_res.permute(2, 0, 1, 3)
         return attn_res, a.squeeze(-1)
+    
+
+class GATv2Network_trainable_slope(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        n_heads: int,
+        use_masking: bool,
+        is_concat: bool = False,
+        dropout: float = 0.6,
+        leaky_relu_negative_slope: float = 0.2,
+        share_weights: bool = False,
+
+    ):
+        super(GATv2Network_trainable_slope, self).__init__()
+
+        self.is_concat = is_concat
+        self.n_heads = n_heads
+        self.share_weights = share_weights
+        self.use_masking = use_masking
+        if is_concat:
+            assert out_features % n_heads == 0
+            self.n_hidden = out_features // n_heads
+        else:
+            self.n_hidden = out_features
+
+        # Layer used for the source transformation
+        self.linear_l = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
+        # Layer used for the target transformation; If share weights, use the same transformation
+        if share_weights:
+            self.linear_r = self.linear_l
+        else:
+            self.linear_r = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
+        self.attn = nn.Linear(2 * self.n_hidden, 1, bias=False)
+        
+        # Make leaky_relu_negative_slope a trainable parameter
+        self.leaky_relu_negative_slope = nn.Parameter(torch.tensor([leaky_relu_negative_slope]))
+        
+        self.activation = nn.LeakyReLU(negative_slope=self.leaky_relu_negative_slope.item())
+        self.softmax = nn.Softmax(dim=3)
+        # self.dropout = nn.Dropout(dropout)
+
+        self.forward_counter = 0
+        self.negative_slope_list = []
+
+    def forward(self, h):
+        # h has shape (agents_nr, samples_nr, process_nr, encoder_dim)
+        agents_nr, samples_nr, process_nr, encoder_dim = h.shape
+        # h change shape to (samples_nr, process_nr, agents_nr, encoder_dim)
+        h_ = h.permute(1, 2, 0, 3)
+        # Left and right transformations (W_l*h and W_r*h)
+        g_l = self.linear_l(h_).view(
+            samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden
+        )
+        g_r = self.linear_r(h_).view(
+            samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden
+        )
+        # Chance g_l dim to (samples_nr, process_nr, agents_nr*agents_nr, encoder_dim)
+        g_l_repeat = g_l.repeat(1, 1, agents_nr, 1, 1)
+        # Chance g_r dim to (samples_nr, process_nr, agents_nr*agents_nr, encoder_dim) BUT interleaved
+        g_r_repeat_interleave = g_r.repeat_interleave(agents_nr, dim=2)
+        g_concat = torch.cat((g_l_repeat, g_r_repeat_interleave), dim=-1)
+        g_concat = g_concat.view(
+            samples_nr,
+            process_nr,
+            agents_nr,
+            agents_nr,
+            self.n_heads,
+            2 * self.n_hidden,
+        )
+        e = self.activation(self.attn(g_concat))
+        e = e.squeeze(-1)
+
+        if self.use_masking:
+            # Remove self loops
+            mask = torch.zeros((1, 1, agents_nr, agents_nr, 1), device=h_.device)
+            mask = torch.diagonal_scatter(
+                mask, torch.ones(1, 1, 1, agents_nr), dim1=2, dim2=3
+            ).bool()
+            e.masked_fill_(mask, float("-inf"))
+
+        a = self.softmax(e)
+        # a = self.dropout(a)
+        attn_res = torch.einsum("abijh,abjhf->abihf", a, g_r)
+
+        if self.is_concat:
+            attn_res = attn_res.reshape(
+                samples_nr, process_nr, agents_nr, self.n_heads * self.n_hidden
+            )
+        else:
+            attn_res = attn_res.mean(dim=3)
+
+        attn_res = attn_res.permute(2, 0, 1, 3)
+
+        self.forward_counter += 1
+        if self.forward_counter % 100 == 0:
+            self.negative_slope_list.append(self.leaky_relu_negative_slope.item())
+            torch.save(self.negative_slope_list, 'negative_slope_list.pt')
+
+        return attn_res, a.squeeze(-1)
 
 
 class AttentionMechanism_v1(nn.Module):
@@ -362,7 +463,7 @@ class AttentionMechanism_v2(nn.Module):
         # -> (batch_size * num_envs, num_agents, num_agents)
         q_dot_k = torch.bmm(Queries, Keys.transpose(1, 2)) / math.sqrt(encoding_dim)
 
-        q_dot_k = F.softmax(q_dot_k, dim=2)
+        q_dot_k = F.softmax(q_dot_k, dim=1)
 
         q_dot_k = F.dropout(q_dot_k, p=self.dropout, training=self.training)
 
@@ -459,7 +560,7 @@ class AttentionMechanism_v3(nn.Module):
             mask = torch.eye(num_agents, dtype=torch.bool).unsqueeze(0)
             q_dot_k = q_dot_k.masked_fill(mask, float("-inf"))
 
-        q_dot_k = F.softmax(q_dot_k, dim=2)
+        q_dot_k = F.softmax(q_dot_k, dim=1)
 
         q_dot_k = F.dropout(q_dot_k, p=self.dropout, training=self.training)
 

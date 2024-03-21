@@ -14,9 +14,9 @@ alg:
     recurrent: False
     layernorm: True # layernorm after each hidden layer
     device: cpu
-    gnn_version: attentionv2
-    # gnn_use_masking: True
-    gnn_use_masking: False
+    gnn_version: gatv2_trainable_slope
+    gnn_use_masking: True
+    # gnn_use_masking: False
     gnn_n_heads: 1
     gnn_is_concat: False
     gnn_dropout:  0.1
