@@ -9,8 +9,8 @@ env:
     num_obstacles: 2
     max_frames: 50
     prey_max_speed: 0
-    po_distance: 0.5
-    # po_distance: 0.25
+    # po_distance: 0.5
+    po_distance: 0.25
 
   wrappers:
     - RecordEpisodeStatistics

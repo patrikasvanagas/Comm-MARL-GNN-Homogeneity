@@ -261,6 +261,8 @@ class GATv2Network_trainable_slope(nn.Module):
         self.forward_counter = 0
         self.negative_slope_list = []
 
+        print("THIS IS THE GATv2Network_trainable_slope")
+
     def forward(self, h):
         # h has shape (agents_nr, samples_nr, process_nr, encoder_dim)
         agents_nr, samples_nr, process_nr, encoder_dim = h.shape
@@ -736,3 +738,95 @@ class CommMultiHeadAttention(nn.Module):
         )
 
         return attention, attention_weights
+
+class GATv2IterationsNetwork(nn.Module):
+    def _init_(
+        self,
+        in_features: int,
+        out_features: int,
+        n_heads: int,
+        use_masking: bool,
+        is_concat: bool = False,
+        dropout: float = 0.6,
+        leaky_relu_negative_slope: float = 0.2,
+        share_weights: bool = False,
+    ):
+        super(GATv2IterationsNetwork, self)._init_()
+        self.iterations = 5
+        self.is_concat = is_concat
+        self.n_heads = n_heads
+        self.share_weights = share_weights
+        self.use_masking = use_masking
+        if is_concat:
+            assert out_features % n_heads == 0
+            self.n_hidden = out_features // n_heads
+        else:
+            self.n_hidden = out_features
+
+        # Layer used for the source transformation
+        self.linear_l = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
+        # Layer used for the target transformation; If share weight we use the same transformation
+        if share_weights:
+            self.linear_r = self.linear_l
+        else:
+            self.linear_r = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
+        self.attn = nn.Linear(2 * self.n_hidden, 1, bias=False)
+        self.activation = nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
+        self.softmax = nn.Softmax(dim=3)
+        # self.dropout = nn.Dropout(dropout)
+
+    def forward(self, h):
+        # h has shape (agents_nr, samples_nr, process_nr, encoder_dim)
+        agents_nr, samples_nr, process_nr, encoder_dim = h.shape
+        # h change shape to (samples_nr, process_nr, agents_nr, encoder_dim)
+        h_ = h.permute(1, 2, 0, 3)
+        a_iterations = None
+        # Left and right transformations (W_l*h and W_r*h)
+        for _ in range(self.iterations):
+            g_l = self.linear_l(h_).view(
+                samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden
+            )
+            g_r = self.linear_r(h_).view(
+                samples_nr, process_nr, agents_nr, self.n_heads, self.n_hidden
+            )
+            # Chance g_l dim to (samples_nr, process_nr, agents_nr*agents_nr, encoder_dim)
+            g_l_repeat = g_l.repeat(1, 1, agents_nr, 1, 1)
+            # Chance g_r dim to (samples_nr, process_nr, agents_nr*agents_nr, encoder_dim) BUT interleaved
+            g_r_repeat_interleave = g_r.repeat_interleave(agents_nr, dim=2)
+            g_concat = torch.cat((g_l_repeat, g_r_repeat_interleave), dim=-1)
+            g_concat = g_concat.view(
+                samples_nr,
+                process_nr,
+                agents_nr,
+                agents_nr,
+                self.n_heads,
+                2 * self.n_hidden,
+            )
+            e = self.activation(self.attn(g_concat))
+            e = e.squeeze(-1)
+
+            if self.use_masking:
+                # Remove self loops
+                mask = torch.zeros((1, 1, agents_nr, agents_nr, 1), device=h_.device)
+                mask = torch.diagonal_scatter(
+                    mask, torch.ones(1, 1, 1, agents_nr), dim1=2, dim2=3
+                ).bool()
+                e.masked_fill_(mask, float("-inf"))
+
+            a = self.softmax(e)
+            # a = self.dropout(a)
+            attn_res = torch.einsum("abijh,abjhf->abihf", a, g_r)
+
+            if self.is_concat:
+                attn_res = attn_res.reshape(
+                    samples_nr, process_nr, agents_nr, self.n_heads * self.n_hidden
+                )
+            else:
+                attn_res = attn_res.mean(dim=3)
+            h_ = attn_res
+            if a_iterations is None:
+                a_iterations = a
+            else:
+                a_iterations += a
+        h_ = h_.permute(2, 0, 1, 3)
+        return h_, a_iterations.squeeze(-1)

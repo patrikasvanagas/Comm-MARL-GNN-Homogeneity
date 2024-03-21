@@ -206,6 +206,9 @@ class A2CGNN(A2C):
                 group_obss_gnn += group_obss
             values, new_hiddens = group_critics(group_obss_gnn, hiddens[agent_group])
         return values, new_hiddens
+    
+
+
 
     def _query_target_critics(self, obss, hiddens, group_id, evaluation=False):
         if evaluation:
@@ -225,3 +228,4 @@ class A2CGNN(A2C):
                 group_obss_gnn += group_obss
             values, new_hiddens = group_critics(group_obss_gnn, hiddens[agent_group])
         return values, new_hiddens
+
