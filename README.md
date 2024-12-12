@@ -1,5 +1,8 @@
 # MLP_CW3
 
+Created with Raul Steleac and Massimiliano Tamborski.
+
+
 Install codebase:
 - pip install -e .
 
